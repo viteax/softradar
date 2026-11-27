@@ -58,3 +58,11 @@ def test_softline_models_format():
     assert len(vs) > 10
     v = pick_variant(vs, 110, "1 год")
     assert v and v.min_qty <= 110 <= v.max_qty
+
+
+def test_extract_conditions():
+    from app.docs import extract_conditions
+
+    t = "срок действия коммерческого предложения должен быть не менее 60 календарных дней; проект договора"
+    assert extract_conditions(t) == {"kp_validity_days": 60, "contract_format": "шаблон заказчика"}
+    assert extract_conditions("Срок действия ТКП: не менее 3 (трех) месяцев")["kp_validity_days"] == 90

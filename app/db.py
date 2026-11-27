@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 # Версия логики анализа: при улучшении агента/скоринга увеличить – старые результаты разберутся заново.
-ANALYSIS_VERSION = 5
+ANALYSIS_VERSION = 6
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenders (

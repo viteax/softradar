@@ -13,6 +13,7 @@ from .agent import Agent
 from .catalog import Catalog
 from .config import Settings
 from .db import DB
+from .docs import extract_conditions, fetch_text
 from .gigachat import GigaChat, GigaChatError
 from .models import Tender
 from .pricing import build_lines, economics, score
@@ -65,6 +66,22 @@ class Pipeline:
                 await asyncio.sleep(1.2)  # бережно к площадкам
         return found
 
+    async def fill_gaps(self, t: Tender, a: dict) -> None:
+        """Ключевые условия, которые агент пропустил, – добираем кодом из всех документов (тексты в кэше)."""
+        if a.get("kp_validity_days") and a.get("contract_format") not in (None, "", "не указан"):
+            return
+        texts = [t.page_text or ""]
+        for doc in t.docs[:8]:
+            try:
+                texts.append(await fetch_text(self.http, self.db, doc.url, doc.name))
+            except Exception:  # noqa: BLE001
+                continue
+        found = extract_conditions("\n".join(texts))
+        for k, v in found.items():
+            if v and (not a.get(k) or a.get(k) == "не указан"):
+                a[k] = v
+                a.setdefault("filled_by_code", []).append(k)
+
     async def enrich(self, t: Tender) -> Tender:
         await asyncio.sleep(1.5)  # площадки отвечают 429 на частые запросы карточек
         try:
@@ -99,6 +116,7 @@ class Pipeline:
             self.say(f"{t.key}: GigaChat – {e}")
             return {}
         a = res.analysis or {"summary": res.error or "агент не вернул результат", "items": []}
+        await self.fill_gaps(t, a)
         lines = await build_lines(a, self.catalog)
         eco = economics(t, a, lines, self.s)
         pts, verdict, why = score(t, a, lines, eco, self.s)

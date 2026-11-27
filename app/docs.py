@@ -103,3 +103,23 @@ async def fetch_text(http: httpx2.AsyncClient, db: DB, url: str, name: str) -> s
     text = tidy(extract(data, name))
     db.cache_put(key, text)
     return text
+
+
+VALIDITY = re.compile(
+    r"срок\w*\s+действия\s+(?:\w+\s+){0,4}?(?:предложени|кп|ткп|цен)\w*[^.\d]{0,80}?(?:не\s+менее|не\s+мене|≥|от)\s*"
+    r"(\d{1,3})\s*\(?[^)]{0,30}\)?\s*(?:календарн\w+\s+|рабоч\w+\s+)?(дн|день|дне|мес)",
+    re.I,
+)
+
+
+def extract_conditions(text: str) -> dict:
+    """Резерв для агента: минимальный срок действия КП и формат договора по типовым формулировкам."""
+    out: dict = {}
+    m = VALIDITY.search(text or "")
+    if m:
+        n = int(m.group(1))
+        out["kp_validity_days"] = n * 30 if m.group(2).lower().startswith("мес") else n
+    low = (text or "").lower()
+    if "проект договора" in low or "проект контракта" in low:
+        out["contract_format"] = "шаблон заказчика"
+    return out

@@ -80,12 +80,18 @@ def economics(t: Tender, analysis: dict, lines: list[KpLine], s: Settings) -> di
     }
 
 
+def _missing_data(reason: str | None) -> bool:
+    """Отказ из-за нехватки данных – это «проверить», а не «не подавать»: менеджер решит сам."""
+    r = (reason or "").lower()
+    return any(k in r for k in ("не указан", "нет данных", "отсутству", "нет документ", "не удалось"))
+
+
 def score(t: Tender, a: dict, lines: list[KpLine], eco: dict, s: Settings) -> tuple[float, str, list[str]]:
     """0–100, вердикт fit | partial | reject и объяснение – каждое слагаемое видно менеджеру."""
     why: list[str] = []
     gates = {
         # ПО и «без конкурса» уже проверил код (filters); агент может отклонить только с причиной
-        "решение агента": a.get("decision") != "не подавать",
+        "решение агента": a.get("decision") != "не подавать" or _missing_data(a.get("decision_reason")),
         "не только для МСП": not a.get("msp_only") and not t.msp_only,
         f"сумма до {s.max_price:,.0f} ₽".replace(",", " "): not (eco["nmc"] and eco["nmc"] > s.max_price)
         and eco["offer_total"] <= s.max_price,

@@ -62,7 +62,7 @@ web.py ────── дашборд, карточки, API; фоновый 
 ## Стек
 
 Python 3.14, Starlette + Jinja2, httpx2, selectolax (lexbor), python-docx, openpyxl, pypdf, SQLite.
-LLM – GigaChat (`GigaChat-3-Pro`, API Сбера, российский контур). Docker, GitHub Actions → ghcr.io →
+LLM – GigaChat Ultra (`GigaChat-3-Ultra`, API Сбера, российский контур); вторым провайдером поддержан OpenAI-совместимый API cloud.ru Foundation Models (`LLM_PROVIDER=openai`, например `GigaChat/GigaChat-4-708B-A41`). Выбор модели – по замеру `scripts/compare_models.py`, экономика – `docs/softradar_cost.xlsx`. Docker, GitHub Actions → ghcr.io →
 VPS в РФ (площадки доступны из РФ), HTTPS через Caddy.
 
 ## Запуск
@@ -77,7 +77,7 @@ uv sync && uv run python -m app
 Тесты: `uv run pytest` (парсеры на сохраненных страницах площадок, фильтры, экономика, КП, веб).
 
 Настройки (`.env.example`): площадки, поисковые запросы, интервал, лимит суммы, порог маржи,
-скидки по вендорам, модель GigaChat.
+скидки по вендорам, провайдер и модель LLM, цены токенов.
 
 ## API
 

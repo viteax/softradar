@@ -44,7 +44,7 @@ get_variants, submit_analysis (до 12 шагов; сам выбирает, чт
 
 ## 3. Стек и модели
 
-GigaChat-3-Pro (API Сбера, function calling); Python 3.14, Starlette, Jinja2, httpx2, selectolax, python-docx,
+GigaChat Ultra (GigaChat-3-Ultra, API Сбера, function calling; поддержан и OpenAI-совместимый API cloud.ru – GigaChat-4, Pro и др.); Python 3.14, Starlette, Jinja2, httpx2, selectolax, python-docx,
 openpyxl, pypdf; SQLite; Docker; GitHub Actions → ghcr.io; VPS в РФ (Ubuntu 24.04, 2 vCPU) – площадки доступны
 только из РФ; HTTPS через Caddy.
 
@@ -52,13 +52,17 @@ openpyxl, pypdf; SQLite; Docker; GitHub Actions → ghcr.io; VPS в РФ (Ubuntu
 
 https://raw.githubusercontent.com/viteax/softradar/main/docs/softradar_cost.xlsx (скачивается без входа)
 
-Замер на стенде: по 52 закупкам в среднем ~14,1 тыс. входных и ~0,46 тыс. выходных токенов, ~7 вызовов GigaChat-3-Pro
-на одну закупку → ≈ 7,3 ₽ за разбор (0,5 ₽ / 1000 токенов). 40 закупок в день → ≈ 8,7 тыс. ₽ LLM + ~0,5 тыс. ₽ VPS
-в месяц. Сбор, фильтры и расчеты – без LLM. Для сравнения: ручной мониторинг 15 площадок ≈ 155 тыс. ₽ в месяц.
+Модель – GigaChat Ultra: выбрана замером на одних и тех же 10 закупках (scripts/compare_models.py). Против Pro
+точнее (верный продукт/количество в 6 случаях из 10, хуже – ни разу), вдвое быстрее (6,4 с против 12,1 с), меньше
+вызовов (4,9 против 6,3). В среднем 17,8 тыс. входных и 0,54 тыс. выходных токенов на закупку → ≈ 1,9 ₽ за разбор
+по ценам cloud.ru (коммерческий доступ к GigaChat с 01.12.2026; Ultra 3.5 ≈ GigaChat3.5-432B: 96,22 / 288,6 ₽ за
+1 млн). 40 закупок в день → ≈ 2,2 тыс. ₽ LLM + ~0,5 тыс. ₽ VPS в месяц. На Pro – ≈ 1,2 ₽, на GigaChat-4-708B
+(cloud.ru, сейчас бесплатно) – 0 ₽: провайдер и модель меняются в .env. Сбор, фильтры, расчеты – без LLM.
+Для сравнения: ручной мониторинг 15 площадок ≈ 155 тыс. ₽ в месяц.
 
 ## 5. Запуск и поставка
 
-Поставка: Docker-образ ghcr.io/viteax/softradar + docker-compose.yml; конфигурация – .env (ключ GigaChat,
+Поставка: Docker-образ ghcr.io/viteax/softradar + docker-compose.yml; конфигурация – .env (ключ GigaChat или cloud.ru, модель,
 площадки, запросы, лимиты, скидки по вендорам). Запуск: `cp .env.example .env && docker compose up -d`.
 Стенд без логина: https://softradar.iptvik.ru
 

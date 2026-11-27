@@ -50,7 +50,7 @@ openpyxl, pypdf; SQLite; Docker; GitHub Actions → ghcr.io; VPS в РФ (Ubuntu
 
 ## 4. Расчет стоимости эксплуатации
 
-https://github.com/viteax/softradar/raw/main/docs/softradar_cost.xlsx (скачивается без входа)
+https://raw.githubusercontent.com/viteax/softradar/main/docs/softradar_cost.xlsx (скачивается без входа)
 
 Замер на стенде: по 52 закупкам в среднем ~14,1 тыс. входных и ~0,46 тыс. выходных токенов, ~7 вызовов GigaChat-3-Pro
 на одну закупку → ≈ 7,3 ₽ за разбор (0,5 ₽ / 1000 токенов). 40 закупок в день → ≈ 8,7 тыс. ₽ LLM + ~0,5 тыс. ₽ VPS

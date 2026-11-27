@@ -150,6 +150,17 @@ def score(t: Tender, a: dict, lines: list[KpLine], eco: dict, s: Settings) -> tu
     pts = max(0.0, min(100.0, pts))
     # «подходит на 100%» – только когда КП можно отдать менеджеру без доработки строк
     flagged = [x for x in lines if x.note]
+    # проверки здравого смысла: модель могла ошибиться в количестве или сопоставлении
+    skus = [x.sku for x in lines if x.matched]
+    if len(skus) != len(set(skus)):
+        why.append("✗ разные позиции закупки сопоставлены одному артикулу – проверить")
+        pts -= 10
+        flagged = flagged or [x for x in lines if skus.count(x.sku) > 1]
+    if eco.get("nmc") and lines and matched == len(lines) and eco["offer_total"] < 0.4 * eco["nmc"]:
+        ratio = eco["offer_total"] / eco["nmc"]
+        why.append(f"✗ сумма КП – {ratio:.0%} от НМЦ: вероятно, не все позиции или неверное количество (−10)")
+        pts -= 10
+        flagged = flagged or lines[:1]
     if flagged:
         pts -= 5 * len(flagged)
         why.append(f"✗ {len(flagged)} поз. требуют проверки: {flagged[0].note} (−{5 * len(flagged)})")

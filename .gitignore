@@ -8,3 +8,4 @@ node_modules/
 dist/
 *.sqlite3
 *.db
+data_local/

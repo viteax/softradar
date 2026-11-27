@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ d.title[:60] }} – СофтРадар{% endblock %}
+{% block body %}
+{% set eco = kp.economics or {} %}
+<p style="margin-top:20px"><a href="/">← все закупки</a></p>
+<h1>{{ d.title or d.number }}</h1>
+<p class="sub">{{ d.source }} · <a href="{{ d.url }}" target="_blank" rel="noopener">{{ d.number }} ↗</a> · {{ d.procedure_type }} · {{ d.customer }}</p>
+
+<div class="actions">
+  {% if r.verdict %}<span class="badge {{ r.verdict }}" style="font-size:14px;padding:6px 10px">{{ VERDICT[r.verdict] }} · {{ r.score|round|int }} баллов</span>{% endif %}
+  {% if kp.lines %}<a class="btn primary" href="/t/{{ r.key|q }}/kp.docx">⬇ Черновик КП (docx)</a>{% endif %}
+  <form method="post" action="/t/{{ r.key|q }}/reanalyze"><button class="btn" {% if running %}disabled{% endif %}>↻ {{ "Разобрать" if not r.analyzed else "Переразобрать" }} агентом</button></form>
+  <a class="btn" href="/api/tenders/{{ r.key|q }}">JSON</a>
+  {% if running %}<span class="progress on" id="progress">агент работает…</span>{% endif %}
+</div>
+
+{% if a.summary %}<p class="summary">{{ a.summary }}</p>{% endif %}
+
+<div class="grid two">
+  <div class="grid">
+    <div class="card">
+      <h2>Условия подачи</h2>
+      <dl class="kv">
+        <dt>НМЦ (сумма сделки)</dt><dd>{{ (eco.nmc or d.price)|rub ~ " ₽" if (eco.nmc or d.price) else "не указана" }}</dd>
+        <dt>Прием КП до</dt><dd>{{ a.kp_deadline or (d.deadline|dt) }} {% if d.deadline %}<span class="small">({{ d.deadline|left }})</span>{% endif %}</dd>
+        <dt>Срок действия КП</dt><dd>{{ ("не менее " ~ a.kp_validity_days ~ " дн.") if a.kp_validity_days else "не указан" }}</dd>
+        <dt>Порядок оплаты</dt><dd>{{ a.payment_terms or "не указан" }}{% if a.prepayment %} · <b>предоплата</b>{% elif a.payment_days %} · постоплата {{ a.payment_days }} дн.{% endif %}</dd>
+        <dt>Формат договора</dt><dd>{{ a.contract_format or "не указан" }}</dd>
+        <dt>Срок поставки</dt><dd>{{ a.delivery_term or "не указан" }}</dd>
+        <dt>Техническое задание</dt><dd>{{ {True: "есть", False: "нет"}.get(a.has_tz, "неизвестно") }}</dd>
+        <dt>Только для МСП</dt><dd>{{ {True: "да", False: "нет"}.get(a.msp_only if a.msp_only is not none else d.msp_only, "не указано") }}</dd>
+        <dt>Без конкурса</dt><dd>{{ {True: "да", False: "нет"}.get(a.procedure_simplified, "–") }}</dd>
+        <dt>Вендор</dt><dd>{{ a.vendor or "–" }}</dd>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h2>Позиции КП по каталогу store.softline.ru</h2>
+      {% if kp.lines %}
+      <table class="tbl" style="border:0">
+        <tr><th>В закупке</th><th>Артикул / товар</th><th class="num">Кол-во</th><th class="num">Цена</th><th class="num">Сумма</th></tr>
+        {% for ln in kp.lines %}
+        <tr>
+          <td>{{ ln.request_name }}</td>
+          <td>{% if ln.matched %}<b>{{ ln.sku }}</b> <a href="{{ ln.url }}" target="_blank" rel="noopener">↗</a><div class="small">{{ ln.name }}</div>{% else %}<span class="badge reject">не найдено</span>{% endif %}
+            {% if ln.note %}<div class="small">⚠ {{ ln.note }}</div>{% endif %}</td>
+          <td class="num">{{ ln.qty }}</td>
+          <td class="num">{{ ln.unit_price|rub if ln.matched else "–" }}</td>
+          <td class="num">{{ ln.total|rub if ln.matched else "–" }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="small">Агент еще не разобрал закупку.</p>{% endif %}
+    </div>
+
+    {% if eco.total_catalog %}
+    <div class="card">
+      <h2>Экономика сделки</h2>
+      <div class="grid eco">
+        <div class="kpi"><div class="v">{{ eco.total_catalog|rub }}</div><div class="l">по каталогу, ₽</div></div>
+        <div class="kpi"><div class="v">{{ eco.offer_total|rub }}</div><div class="l">сумма КП, ₽</div></div>
+        <div class="kpi"><div class="v">{{ eco.cost_est|rub }}</div><div class="l">оценка себестоимости, ₽</div></div>
+        <div class="kpi"><div class="v">{{ eco.margin|rub }}</div><div class="l">маржа, ₽ ({{ eco.margin_pct|pct }})</div></div>
+      </div>
+      <p class="small">Себестоимость = цена каталога × (1 − {{ eco.discount_assumed|pct }}) – допущение скидки партнера для вендора «{{ eco.vendor_key }}», настраивается (VENDOR_DISCOUNTS). {{ eco.note }} КП действительно до {{ eco.valid_until }}.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="grid">
+    {% if kp.why %}
+    <div class="card"><h2>Почему такой балл</h2><ul class="why">{% for w in kp.why %}<li>{{ w }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    {% if a.risks %}
+    <div class="card"><h2>Риски</h2>{% for x in a.risks %}<div class="chip" style="font-size:13px;margin-bottom:4px">{{ x }}</div>{% endfor %}</div>
+    {% endif %}
+    {% if not r.verdict and r.filter_reasons %}
+    <div class="card"><h2>Фильтр</h2>{% for x in r.filter_reasons %}<div>· {{ x }}</div>{% endfor %}</div>
+    {% endif %}
+    <div class="card">
+      <h2>Документы закупки</h2>
+      {% for doc in d.docs %}<div>📄 <a href="{{ doc.url }}" target="_blank" rel="noopener">{{ doc.name }}</a></div>{% else %}<p class="small">нет</p>{% endfor %}
+    </div>
+    {% if r.trace %}
+    <div class="card">
+      <h2>Ход работы агента</h2>
+      <p class="small">{{ kp.requests or "?" }} запросов к модели · {{ r.tokens }} токенов · ≈ {{ "%.2f"|format((r.tokens or 0) / 1000 * s.giga_price_per_1k) }} ₽</p>
+      <div class="trace">
+      {% for st in r.trace %}
+        <div class="step">
+          {% if st.type == "tool" %}
+            <div class="h">{{ st.step }}. {{ {"read_document": "📄 Читает документ", "search_catalog": "🔎 Ищет в каталоге", "get_variants": "🏷 Подбирает артикул"}.get(st.name, st.name) }}</div>
+            <div class="small">{{ st.args|pretty }}</div>
+            <details><summary>ответ инструмента</summary><pre>{{ st.result }}</pre></details>
+          {% elif st.type == "submit" %}
+            <div class="h">{{ st.step }}. ✅ Сдает итог</div>
+            <details><summary>структурированный результат</summary><pre>{{ st.args|pretty }}</pre></details>
+          {% else %}
+            <div class="h">{{ st.step }}. 💬 Ответ текстом</div><pre>{{ st.content }}</pre>
+          {% endif %}
+        </div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}{% if running %}
+<script>
+setInterval(async () => {
+  try { const r = await (await fetch('/api/status')).json();
+    if (!r.running) { location.reload(); return; }
+    document.getElementById('progress').textContent = r.progress; } catch (e) {}
+}, 2500);
+</script>{% endif %}{% endblock %}

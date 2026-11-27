@@ -19,7 +19,7 @@ services:
       edge:
         aliases: [softradar] # по этому имени edge-caddy передает запросы
     # сервер общий: ~2 ГБ свободной памяти на все новые проекты
-    mem_limit: 128m
+    mem_limit: 320m
     logging:
       driver: json-file
       options: {max-size: "5m", max-file: "3"}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Закупки ПО на маркетплейсах</h1>
+<p class="sub">Площадки: {{ s.sources|join(", ") }} · запросов: {{ s.queries|length }} · автозапуск каждые {{ s.run_interval_min }} мин ·
+  критерии: ПО, до {{ s.max_price|rub }} ₽, подача КП без конкурса, не только для МСП</p>
+
+<div class="grid kpis">
+  <div class="kpi"><div class="v">{{ groups.fit|length }}</div><div class="l">подходят на 100% – КП готово</div></div>
+  <div class="kpi"><div class="v">{{ groups.partial|length }}</div><div class="l">частично – нужна проверка</div></div>
+  <div class="kpi"><div class="v">{{ analyzed }}</div><div class="l">разобрано агентом</div></div>
+  <div class="kpi"><div class="v">{{ groups.filtered|length + groups.reject|length }}</div><div class="l">отсеяно (фильтр + агент)</div></div>
+  <div class="kpi"><div class="v">{{ "%.2f"|format(cost_per) }} ₽</div><div class="l">LLM на одну закупку (в среднем)</div></div>
+</div>
+
+<div class="actions">
+  <form method="post" action="/run"><button class="btn primary" {% if running %}disabled{% endif %}>▶ Запустить мониторинг</button></form>
+  <form class="inline" method="post" action="/add">
+    <input type="url" name="url" required placeholder="Ссылка на закупку roseltorg.ru / fabrikant.ru – разобрать сразу">
+    <button class="btn" {% if running %}disabled{% endif %}>Разобрать</button>
+  </form>
+  <a class="btn" href="/report.xlsx">⬇ Отчет xlsx</a>
+</div>
+<p class="progress {% if running %}on{% endif %}" id="progress">
+  {% if running %}{{ progress }}{% elif last_run %}Последний прогон: {{ last_run.started|ts }}{% if last_run.stats %} – найдено {{ last_run.stats.found }}, прошли фильтр {{ last_run.stats.passed }}, разобрано {{ last_run.stats.analyzed }}, подходит {{ last_run.stats.fit }}{% endif %}{% if last_run.error %} · ошибка: {{ last_run.error }}{% endif %}{% else %}Прогонов еще не было{% endif %}
+  {% if not llm %} · <b>LLM не настроен</b>{% endif %}
+</p>
+
+<div class="tabs">
+  {% for k, label in [("fit","Подходят"),("partial","Частично"),("queue","Ждут анализа"),("reject","Не подходят"),("filtered","Отсеяны фильтром")] %}
+  <a href="/?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ label }}<span class="n">{{ groups[k]|length }}</span></a>
+  {% endfor %}
+</div>
+<div class="tbl">
+{% if rows %}
+<table>
+  <tr><th>Балл</th><th>Закупка</th><th class="num">НМЦ, ₽</th><th class="num">КП, ₽</th><th class="num">Маржа</th><th>Прием КП до</th><th>Условия и риски</th></tr>
+  {% for r in rows %}{% set d = r.data %}{% set a = r.analysis or {} %}{% set eco = (r.kp or {}).economics or {} %}
+  <tr>
+    <td>{% if r.score is not none %}<span class="score {{ 'hi' if r.score >= 70 else 'mid' if r.score >= 45 }}">{{ r.score|round|int }}</span>{% else %}<span class="small">–</span>{% endif %}</td>
+    <td>
+      <a class="title" href="/t/{{ r.key|q }}">{{ d.title[:140] }}</a>
+      <div class="small">{{ d.source }} · {{ d.number }} · {{ d.procedure_type }}{% if d.customer %} · {{ d.customer[:70] }}{% endif %}</div>
+      {% if r.verdict %}<span class="badge {{ r.verdict }}">{{ VERDICT[r.verdict] }}</span>{% endif %}
+    </td>
+    <td class="num">{{ (eco.nmc or d.price)|rub if (eco.nmc or d.price) else "не указ." }}</td>
+    <td class="num">{{ eco.offer_total|rub if eco.offer_total else "–" }}</td>
+    <td class="num">{{ eco.margin_pct|pct if eco.offer_total else "–" }}</td>
+    <td>{{ d.deadline|dt }}<div class="small">{{ d.deadline|left }}</div></td>
+    <td style="max-width:300px">
+      {% if a.payment_terms %}<div class="small">💳 {{ a.payment_terms[:90] }}</div>{% endif %}
+      {% for x in (a.risks or [])[:3] %}<span class="chip">{{ x[:60] }}</span>{% endfor %}
+      {% if not r.verdict %}{% for x in (r.filter_reasons or [])[:3] %}<span class="chip">{{ x }}</span>{% endfor %}{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<div class="empty">Здесь пока пусто</div>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% if running %}
+<script>
+setInterval(async () => {
+  try {
+    const r = await (await fetch('/api/status')).json();
+    if (!r.running) { location.reload(); return; }
+    document.getElementById('progress').textContent = r.progress;
+  } catch (e) {}
+}, 3000);
+</script>{% endif %}{% endblock %}

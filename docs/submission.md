@@ -2,7 +2,7 @@
 
 **Демо-видео:** _ссылка на запись (до 3 мин, один дубль)_
 **Репозиторий:** https://github.com/viteax/softradar
-**Доп. материалы:** _ссылка на папку (расчет стоимости, пример КП, пример отчета)_
+**Доп. материалы:** https://github.com/viteax/softradar/tree/main/docs (расчет стоимости, сценарий демо); отчет xlsx – https://softradar.iptvik.ru/report.xlsx
 **Адрес стенда:** https://softradar.iptvik.ru
 
 ## 1. Что сделано за 48 часов и что нет
@@ -50,7 +50,7 @@ openpyxl, pypdf; SQLite; Docker; GitHub Actions → ghcr.io; VPS в РФ (Ubuntu
 
 ## 4. Расчет стоимости эксплуатации
 
-_ссылка на docs/softradar_cost.xlsx в облаке_ (файл также в репозитории: docs/softradar_cost.xlsx)
+https://github.com/viteax/softradar/raw/main/docs/softradar_cost.xlsx (скачивается без входа)
 
 Замер на стенде: в среднем ~10,7 тыс. входных и ~0,4 тыс. выходных токенов, 4–6 вызовов GigaChat-3-Pro на одну
 закупку → ≈ 5,6 ₽ за разбор (0,5 ₽ / 1000 токенов). 40 закупок в день → ≈ 6,7 тыс. ₽ LLM + ~0,5 тыс. ₽ VPS

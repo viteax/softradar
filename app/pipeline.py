@@ -146,7 +146,12 @@ class Pipeline:
                 self.say(f"прошли фильтры {stats['passed']} из {stats['found']}; анализ агентом")
                 limit = self.s.max_analyze_per_run if analyze_limit is None else analyze_limit
                 for row in self.db.to_analyze(limit):
-                    kp = await self.analyze(row["key"])
+                    try:
+                        kp = await self.analyze(row["key"])
+                    except Exception as e:  # noqa: BLE001 – одна закупка не должна ронять прогон
+                        log.exception("анализ %s", row["key"])
+                        self.say(f"{row['key']}: ошибка анализа – {type(e).__name__}: {str(e)[:120]}")
+                        continue
                     stats["analyzed"] += 1
                     done = self.db.tender(row["key"]) or {}
                     stats["fit"] += done.get("verdict") == "fit"

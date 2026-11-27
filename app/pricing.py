@@ -25,11 +25,18 @@ async def build_lines(analysis: dict, catalog: Catalog) -> list[KpLine]:
         note = ""
         if "store.softline.ru" not in url and name:
             # агент не нашел – код пробует поиск по названию позиции сам
-            found = await catalog.search(re.sub(r"[«»\"]", "", name)[:80], limit=1)
+            query = " ".join(re.sub(r"[«»\"()]", " ", name).split()[:6])
+            try:
+                found = await catalog.search(query, limit=1)
+            except Exception:  # noqa: BLE001 – каталог недоступен: строка останется «не найдено»
+                found = []
             if found:
                 url, note = found[0]["url"], "подобрано автоматически по названию – проверить"
         if "store.softline.ru" in url:
-            variants = await catalog.variants(url)
+            try:
+                variants = await catalog.variants(url)
+            except Exception:  # noqa: BLE001
+                variants, note = [], "каталог не ответил – проверить"
             v = pick_variant(variants, qty, hint)
             if v:
                 line.sku, line.name, line.unit_price = v.sku, v.name, v.price

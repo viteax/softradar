@@ -69,13 +69,31 @@ class Settings:
         )
     )
     giga_api_url: str = field(default_factory=lambda: _env("GIGACHAT_API_URL", "https://api.giga.chat/v1"))
-    # цена GigaChat за 1000 токенов, ₽ – для расчета стоимости запроса на дашборде
-    giga_price_per_1k: float = field(default_factory=lambda: float(_env("GIGACHAT_PRICE_PER_1K", "0.5")))
+    # провайдер LLM: gigachat (developers.sber.ru) или openai (OpenAI-совместимый API, например cloud.ru)
+    llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "gigachat"))
+    llm_api_key: str = field(default_factory=lambda: _env("LLM_API_KEY"))
+    llm_base_url: str = field(
+        default_factory=lambda: _env("LLM_BASE_URL", "https://foundation-models.api.cloud.ru/v1")
+    )
+    llm_model: str = field(default_factory=lambda: _env("LLM_MODEL", "GigaChat/GigaChat-4-708B-A41"))
+    # цена за 1 млн токенов, ₽ (вход / выход) – для стоимости разбора на дашборде
+    price_in_1m: float = field(default_factory=lambda: float(_env("LLM_PRICE_IN_1M", "96.22")))
+    price_out_1m: float = field(default_factory=lambda: float(_env("LLM_PRICE_OUT_1M", "288.6")))
     autorun: bool = field(default_factory=lambda: _env("AUTORUN", "1") == "1")
 
     @property
     def llm_ready(self) -> bool:
-        return bool(self.giga_auth_key)
+        return bool(self.llm_api_key) if self.llm_provider == "openai" else bool(self.giga_auth_key)
+
+    @property
+    def model_name(self) -> str:
+        return self.llm_model if self.llm_provider == "openai" else self.giga_model
+
+    def cost(self, prompt: int, completion: int, total: int = 0) -> float:
+        """₽ за разбор: по входным/выходным токенам; если разбивки нет – все по цене входа."""
+        if not (prompt or completion):
+            prompt = total
+        return (prompt * self.price_in_1m + completion * self.price_out_1m) / 1_000_000
 
 
 settings = Settings()

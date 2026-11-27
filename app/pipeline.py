@@ -15,6 +15,7 @@ from .config import Settings
 from .db import DB
 from .docs import extract_conditions, fetch_text
 from .gigachat import GigaChat, GigaChatError
+from .llm_openai import OpenAIChat
 from .models import Tender
 from .pricing import build_lines, economics, score
 from .sources import client, fabrikant, roseltorg
@@ -28,11 +29,14 @@ class Pipeline:
         self.s, self.db = s, db
         self.http = client()
         self.catalog = Catalog(self.http, db)
-        self.giga = (
-            GigaChat(s.giga_auth_key, s.giga_scope, s.giga_model, s.giga_oauth_url, s.giga_api_url)
-            if s.llm_ready
-            else None
-        )
+        if not s.llm_ready:
+            self.giga = None
+        elif s.llm_provider == "openai":
+            self.giga = OpenAIChat(s.llm_api_key, s.llm_model, s.llm_base_url)
+        else:
+            self.giga = GigaChat(
+                s.giga_auth_key, s.giga_scope, s.giga_model, s.giga_oauth_url, s.giga_api_url
+            )
         self.agent = Agent(self.giga, self.http, db, self.catalog) if self.giga else None
         self.lock = asyncio.Lock()
         self.log: collections.deque[str] = collections.deque(maxlen=200)
@@ -130,6 +134,7 @@ class Pipeline:
             "requests": res.requests,
             "prompt_tokens": res.prompt_tokens,
             "completion_tokens": res.completion_tokens,
+            "model": self.s.model_name,
         }
         self.db.save_analysis(key, a, res.trace, kp, pts, verdict, res.tokens)
         self.say(

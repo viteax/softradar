@@ -15,6 +15,7 @@ from app.catalog import Catalog
 from app.config import Settings
 from app.db import DB
 from app.gigachat import GigaChat
+from app.llm_openai import OpenAIChat
 from app.models import Tender
 from app.pricing import build_lines, economics, score
 from app.sources import client
@@ -35,7 +36,12 @@ async def main() -> None:
     catalog = Catalog(http, db)
     out = []
     for model in models:
-        giga = GigaChat(s.giga_auth_key, s.giga_scope, model, s.giga_oauth_url, s.giga_api_url)
+        if model.startswith(
+            "openai:"
+        ):  # openai:GigaChat/GigaChat-4-708B-A41 – через LLM_API_KEY / LLM_BASE_URL
+            giga = OpenAIChat(s.llm_api_key, model.split(":", 1)[1], s.llm_base_url)
+        else:
+            giga = GigaChat(s.giga_auth_key, s.giga_scope, model, s.giga_oauth_url, s.giga_api_url)
         agent = Agent(giga, http, db, catalog)
         for key in keys:
             row = db.tender(key)

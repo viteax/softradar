@@ -85,7 +85,19 @@ async def index(request: Request) -> HTMLResponse:
         progress=pipeline.progress,
         tokens=tokens,
         analyzed=len(analyzed),
-        cost_per=(tokens / len(analyzed) / 1000 * settings.giga_price_per_1k) if analyzed else 0,
+        cost_per=(
+            sum(
+                settings.cost(
+                    (r.get("kp") or {}).get("prompt_tokens") or 0,
+                    (r.get("kp") or {}).get("completion_tokens") or 0,
+                    r.get("tokens") or 0,
+                )
+                for r in analyzed
+            )
+            / len(analyzed)
+            if analyzed
+            else 0
+        ),
         s=settings,
         llm=settings.llm_ready,
     )

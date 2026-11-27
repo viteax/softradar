@@ -84,7 +84,7 @@
     {% if r.trace %}
     <div class="card">
       <h2>Ход работы агента</h2>
-      <p class="small">{{ kp.requests or "?" }} запросов к модели · {{ r.tokens }} токенов · ≈ {{ "%.2f"|format((r.tokens or 0) / 1000 * s.giga_price_per_1k) }} ₽</p>
+      <p class="small">{{ kp.requests or "?" }} запросов к модели · {{ r.tokens }} токенов · {% if kp.prompt_tokens %}вход {{ kp.prompt_tokens }} / выход {{ kp.completion_tokens }} · {% endif %}≈ {{ "%.2f"|format(s.cost(kp.prompt_tokens or 0, kp.completion_tokens or 0, r.tokens or 0)) }} ₽{% if kp.model %} · {{ kp.model }}{% endif %}</p>
       <div class="trace">
       {% for st in r.trace %}
         <div class="step">

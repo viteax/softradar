@@ -6,7 +6,7 @@
 
 import json
 import re
-from urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin, urlparse
 
 import httpx2
 from selectolax.lexbor import LexborHTMLParser as HTMLParser
@@ -72,6 +72,29 @@ def parse_variants(html: str, family_url: str) -> list[Variant]:
                 vendor=clean(p.get("vendorName")).strip("«»"),
             )
         )
+    # второй формат страниц (Kaspersky EDR, КриптоПро, Astra…): models[] → licenses{} с артикулами
+    title = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    family = clean(re.sub(r"<[^>]+>", " ", title.group(1))) if title else ""
+    for model in cfg.get("models") or []:
+        lic = model.get("licenses") or {}
+        for p in lic.values() if isinstance(lic, dict) else lic:
+            pr = p.get("price") or {}
+            price = money(str(pr.get("with_discount") or pr.get("without_discount") or ""))
+            if not price or not p.get("sku"):
+                continue
+            out.append(
+                Variant(
+                    sku=p["sku"],
+                    name=clean(f"{family} – {p.get('name') or model.get('name') or ''}"),
+                    config=clean(model.get("name") or p.get("name")),
+                    price=price,
+                    min_qty=p.get("min_quantity"),
+                    max_qty=p.get("max_quantity"),
+                    vat="0",  # лицензии на ПО из реестра НДС не облагаются; в этом формате ставка не отдается
+                    delivery_days=None,
+                    family_url=family_url,
+                )
+            )
     return out
 
 
@@ -107,7 +130,50 @@ class Catalog:
                 continue
             for v in parse_variants(extra, url):
                 found.setdefault(v.sku, v)
+        if not found:
+            # третий формат (Astra, РЕД ОС…): семейство – список ссылок на страницы отдельных артикулов
+            for link in parse_sku_links(html, url)[:12]:
+                try:
+                    v = parse_sku_page(await self._page(link), link, url)
+                except Exception:  # noqa: BLE001
+                    continue
+                if v:
+                    found.setdefault(v.sku, v)
         return list(found.values())
+
+
+def parse_sku_links(html: str, family_url: str) -> list[str]:
+    path = urlparse(family_url).path.strip("/").split("/")[0]
+    links = re.findall(rf'href="(/{re.escape(path)}/[a-z0-9-]+-\d{{5,}}/)"', html)
+    return [urljoin(BASE, x) for x in dict.fromkeys(links)]
+
+
+def parse_sku_page(html: str, link: str, family_url: str) -> Variant | None:
+    m = re.search(r"window\.temporaryFrontConfig\s*=\s*(\{.*?\});?\s*</script>", html, re.S)
+    if not m:
+        return None
+    try:
+        p = json.loads(m.group(1)).get("product") or {}
+    except json.JSONDecodeError:
+        return None
+    price = money(str(p.get("priceWithDiscount") or p.get("price") or ""))
+    title = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    if not price or not title:
+        return None
+    name = clean(re.sub(r"<[^>]+>", " ", title.group(1)))
+    slug = urlparse(link).path.strip("/").split("/")[-1]
+    sku = re.sub(r"-\d{5,}$", "", slug).upper()
+    return Variant(
+        sku=sku,
+        name=name,
+        config=name,
+        price=price,
+        min_qty=p.get("minQuantity") or 1,
+        max_qty=None,
+        vat=str(p.get("vatPercents") or 0) if p.get("hasVat") else "0",
+        delivery_days=None,
+        family_url=family_url,
+    )
 
 
 def parse_filters(html: str, kind: str) -> list[tuple[str, str, str]]:

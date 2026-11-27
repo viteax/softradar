@@ -50,3 +50,11 @@ def test_helpers():
     assert money("10 080 000,00 ₽") == 10080000.0
     assert money("0,00") is None
     assert ru_datetime("01.12.26 23:59").year == 2026
+
+
+def test_softline_models_format():
+    html = read("softline_product_models.html")
+    vs = parse_variants(html, "https://store.softline.ru/kaspersky/kaspersky-edr-dlya-biznesa-optimalnyy/")
+    assert len(vs) > 10
+    v = pick_variant(vs, 110, "1 год")
+    assert v and v.min_qty <= 110 <= v.max_qty

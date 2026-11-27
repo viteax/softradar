@@ -63,29 +63,59 @@ async def search(http: httpx2.AsyncClient, query: str, pages: int, max_price: fl
     return found
 
 
-async def detail(http: httpx2.AsyncClient, t: Tender) -> Tender:
-    r = await get(http, t.url)
-    tree = HTMLParser(r.text)
+def _text(html: str) -> tuple[HTMLParser, str]:
+    tree = HTMLParser(html)
     for bad in tree.css("script, style, header, footer, nav"):
         bad.decompose()
     text = tree.body.text(separator="\n") if tree.body else ""
     text = re.sub(r"[ \t\xa0]+", " ", text)
-    text = re.sub(r"\n\s*\n+", "\n", text)
+    return tree, re.sub(r"\n\s*\n+", "\n", text)
+
+
+def _abs(r: httpx2.Response, href: str) -> str:
+    return str(r.url.join(href))
+
+
+async def detail(http: httpx2.AsyncClient, t: Tender) -> Tender:
+    r = await get(http, t.url)
+    if r.status_code != 200:
+        raise RuntimeError(f"HTTP {r.status_code}")
+    tree, text = _text(r.text)
     start = max(0, text.find(t.title[:40]) - 300) if t.title else 0
-    t.page_text = text[start : start + 12000]
-    docs = []
-    for a in tree.css("a"):
-        href = a.attributes.get("href") or ""
-        name = clean(a.text())
-        if (
-            re.search(r"\.(docx?|pdf|xlsx?|rtf|zip)(\?|$)", href, re.I)
-            or "/download" in href
-            or "/file/" in href
-        ):
-            if href.startswith("/"):
-                href = r.url.scheme + "://" + r.url.host + href
-            docs.append(Doc(name=name or href.rsplit("/", 1)[-1], url=href))
-    t.docs = docs[:15]
+    t.page_text = text[start : start + 9000]
+    docs: list[Doc] = []
+    links = {(a.attributes.get("href") or ""): clean(a.text()) for a in tree.css("a")}
+    for href, name in links.items():
+        if re.search(r"\.(docx?|pdf|xlsx?|rtf)(\?|$)", href, re.I) or "/download" in href:
+            docs.append(Doc(name=name or href.rsplit("/", 1)[-1], url=_abs(r, href)))
+    # секции «trades/<площадка>/<Тип>/?action=view»: позиции и документы – на отдельных страницах
+    for href in links:
+        if "action=view_positions" in href or "action=product_requirements_view" in href:
+            try:
+                _, ptext = _text((await get(http, _abs(r, href))).text)
+                i = ptext.find("Наименование")
+                t.page_text += "\n\n[Позиции закупки]\n" + ptext[max(0, i - 200) : max(0, i - 200) + 4000]
+            except Exception:  # noqa: BLE001 – позиции необязательны
+                pass
+    doc_page = next((h for h in links if "file_documentations_view" in h), "")
+    if doc_page:
+        try:
+            dr = await get(http, _abs(r, doc_page))
+            for a in HTMLParser(dr.text).css("a"):
+                href = a.attributes.get("href") or ""
+                if "file_documentations_get_file" in href:
+                    name = clean(a.text()).strip("_ ") or "документ"
+                    docs.append(
+                        Doc(name=f"Документация закупки {len(docs) + 1} ({name})", url=_abs(dr, href))
+                    )
+        except Exception:  # noqa: BLE001
+            pass
+    seen: set[str] = set()
+    t.docs = [d for d in docs if not (d.url in seen or seen.add(d.url))][:15]
     if t.msp_only is None and "только субъект" in text.lower():
         t.msp_only = True
+    if t.price is None:
+        m = re.search(r"(?:Общая цена|Начальная цена|НМЦ)[^\d]{0,40}([\d\s\xa0]+,\d{2})\s*руб", text)
+        if m:
+            t.price = money(m.group(1))
     return t

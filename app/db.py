@@ -6,6 +6,9 @@ import threading
 import time
 from pathlib import Path
 
+# Версия логики анализа: при улучшении агента/скоринга увеличить – старые результаты разберутся заново.
+ANALYSIS_VERSION = 3
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenders (
     key TEXT PRIMARY KEY,
@@ -37,6 +40,10 @@ class DB:
         self.lock = threading.Lock()
         with self.lock:
             self.conn.executescript(SCHEMA)
+            cols = {r[1] for r in self.conn.execute("PRAGMA table_info(tenders)")}
+            if "ver" not in cols:
+                self.conn.execute("ALTER TABLE tenders ADD COLUMN ver INTEGER DEFAULT 0")
+                self.conn.commit()
 
     def q(self, sql: str, args: tuple = ()) -> list[sqlite3.Row]:
         with self.lock:
@@ -90,7 +97,7 @@ class DB:
         self, key: str, analysis: dict, trace: list, kp: dict, score: float, verdict: str, tokens: int
     ) -> None:
         self.x(
-            "UPDATE tenders SET analysis=?, trace=?, kp=?, score=?, verdict=?, tokens=?, analyzed=? WHERE key=?",
+            f"UPDATE tenders SET analysis=?, trace=?, kp=?, score=?, verdict=?, tokens=?, analyzed=?, ver={ANALYSIS_VERSION} WHERE key=?",
             (
                 json.dumps(analysis, ensure_ascii=False),
                 json.dumps(trace, ensure_ascii=False),
@@ -112,7 +119,8 @@ class DB:
 
     def to_analyze(self, limit: int) -> list[dict]:
         rows = self.q(
-            "SELECT * FROM tenders WHERE filter_ok=1 AND analyzed IS NULL ORDER BY first_seen DESC LIMIT ?",
+            f"SELECT * FROM tenders WHERE filter_ok=1 AND (analyzed IS NULL OR ver < {ANALYSIS_VERSION}) "
+            "ORDER BY (analyzed IS NOT NULL), first_seen DESC LIMIT ?",
             (limit,),
         )
         return [_row(r) for r in rows]

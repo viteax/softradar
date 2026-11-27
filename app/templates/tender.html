@@ -22,14 +22,14 @@
       <h2>Условия подачи</h2>
       <dl class="kv">
         <dt>НМЦ (сумма сделки)</dt><dd>{{ (eco.nmc or d.price)|rub ~ " ₽" if (eco.nmc or d.price) else "не указана" }}</dd>
-        <dt>Прием КП до</dt><dd>{{ a.kp_deadline or (d.deadline|dt) }} {% if d.deadline %}<span class="small">({{ d.deadline|left }})</span>{% endif %}</dd>
+        <dt>Прием КП до</dt><dd>{{ (d.deadline|dt) if d.deadline else (a.kp_deadline or "не указан") }} {% if d.deadline %}<span class="small">({{ d.deadline|left }})</span>{% endif %}</dd>
         <dt>Срок действия КП</dt><dd>{{ ("не менее " ~ a.kp_validity_days ~ " дн.") if a.kp_validity_days else "не указан" }}</dd>
         <dt>Порядок оплаты</dt><dd>{{ a.payment_terms or "не указан" }}{% if a.prepayment %} · <b>предоплата</b>{% elif a.payment_days %} · постоплата {{ a.payment_days }} дн.{% endif %}</dd>
         <dt>Формат договора</dt><dd>{{ a.contract_format or "не указан" }}</dd>
         <dt>Срок поставки</dt><dd>{{ a.delivery_term or "не указан" }}</dd>
         <dt>Техническое задание</dt><dd>{{ {True: "есть", False: "нет"}.get(a.has_tz, "неизвестно") }}</dd>
         <dt>Только для МСП</dt><dd>{{ {True: "да", False: "нет"}.get(a.msp_only if a.msp_only is not none else d.msp_only, "не указано") }}</dd>
-        <dt>Без конкурса</dt><dd>{{ {True: "да", False: "нет"}.get(a.procedure_simplified, "–") }}</dd>
+        <dt>Решение агента</dt><dd>{{ a.decision or "–" }}{% if a.decision_reason %} <span class="small">– {{ a.decision_reason }}</span>{% endif %}</dd>
         <dt>Вендор</dt><dd>{{ a.vendor or "–" }}</dd>
       </dl>
     </div>

@@ -19,6 +19,7 @@ def main() -> None:
         proxy_headers=True,
         forwarded_allow_ips="*",
         access_log=False,  # журнал посещений ведет edge-caddy
+        log_config=None,  # не перетирать basicConfig: логи конвейера и агента видны в docker logs
     )
 
 

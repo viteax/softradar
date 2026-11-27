@@ -62,10 +62,11 @@ class Pipeline:
                 for t in items:
                     found.setdefault(t.key, t)
                 self.say(f"{name}: «{q}» – {len(items)} шт., всего уникальных {len(found)}")
-                await asyncio.sleep(0.7)  # бережно к площадкам
+                await asyncio.sleep(1.2)  # бережно к площадкам
         return found
 
     async def enrich(self, t: Tender) -> Tender:
+        await asyncio.sleep(1.5)  # площадки отвечают 429 на частые запросы карточек
         try:
             t = await SOURCES[t.source].detail(self.http, t)
         except Exception as e:  # noqa: BLE001
@@ -81,10 +82,16 @@ class Pipeline:
         if not self.agent:
             self.db.save_analysis(key, {"summary": "LLM не настроен (GIGACHAT_AUTH_KEY)"}, [], {}, 0, "", 0)
             return {}
-        if not t.page_text:
+        if not t.page_text or not t.docs:
             t = await self.enrich(t)
             ok, reasons = filters.check(t, self.s.max_price)
-            self.db.upsert_tender(t.to_dict(), ok, reasons)
+            manual = "добавлена вручную" in (row.get("filter_reasons") or [])
+            self.db.upsert_tender(
+                t.to_dict(), ok or manual, reasons + (["добавлена вручную"] if manual else [])
+            )
+            if not ok and not manual:
+                self.say(f"{t.key}: после чтения карточки не проходит фильтр – {', '.join(reasons)}")
+                return {}
         self.say(f"агент разбирает {t.key}: {t.title[:70]}")
         try:
             res = await self.agent.analyze(t)

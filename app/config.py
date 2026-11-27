@@ -24,7 +24,7 @@ KEY_VENDORS = {
     "pro32": ["pro32"],
     "usergate": ["usergate", "юзергейт"],
     "yandex": ["яндекс", "yandex"],
-    "basalt": ["базальт", "basealt", "альт рабочая", "альт сервер", "alt linux", "альт линукс", "альт 1"],
+    "basalt": ["базальт спо", "basealt", "альт рабочая", "альт сервер", "alt linux", "альт линукс", "альт 1"],
     "positive": ["positive technologies", "maxpatrol", "pt af", "pt application", "pt sandbox", "позитив"],
     "redsoft": ["редсофт", "red soft", "ред ос", "redos", "red os", "ред база"],
 }
@@ -52,7 +52,7 @@ class Settings:
     sources: list[str] = field(default_factory=lambda: _list("SOURCES", "roseltorg,fabrikant"))
     pages_per_query: int = field(default_factory=lambda: int(_env("PAGES_PER_QUERY", "2")))
     run_interval_min: int = field(default_factory=lambda: int(_env("RUN_INTERVAL_MIN", "60")))
-    max_analyze_per_run: int = field(default_factory=lambda: int(_env("MAX_ANALYZE_PER_RUN", "25")))
+    max_analyze_per_run: int = field(default_factory=lambda: int(_env("MAX_ANALYZE_PER_RUN", "40")))
     min_margin: float = field(default_factory=lambda: float(_env("MIN_MARGIN", "0.08")))
     discounts: dict[str, float] = field(
         default_factory=lambda: {
@@ -70,7 +70,7 @@ class Settings:
     )
     giga_api_url: str = field(default_factory=lambda: _env("GIGACHAT_API_URL", "https://api.giga.chat/v1"))
     # цена GigaChat за 1000 токенов, ₽ – для расчета стоимости запроса на дашборде
-    giga_price_per_1k: float = field(default_factory=lambda: float(_env("GIGACHAT_PRICE_PER_1K", "1.5")))
+    giga_price_per_1k: float = field(default_factory=lambda: float(_env("GIGACHAT_PRICE_PER_1K", "0.5")))
     autorun: bool = field(default_factory=lambda: _env("AUTORUN", "1") == "1")
 
     @property

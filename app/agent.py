@@ -28,11 +28,25 @@ store.softline.ru.
 Порядок работы:
 1. Прочитай документы закупки инструментом read_document: в первую очередь запрос КП/ТКП, извещение,
    техническое задание, проект договора. Условия оплаты, срок действия КП и формат договора обычно там.
+   Если документов нет – работай по тексту карточки (там бывают позиции, количество и условия), это
+   не повод останавливаться.
 2. Выдели позиции ПО: точное наименование, количество (узлы, пользователи, лицензии), срок (мес.),
-   тип лицензии (новая или продление).
-3. Для каждой позиции найди товар в каталоге: search_catalog (коротким запросом: вендор + продукт),
-   затем get_variants по ссылке, чтобы убедиться, что есть артикул под нужное количество.
-4. Сдай итог инструментом submit_analysis. Это обязательный последний шаг.
+   тип лицензии (новая или продление). Количество – из ТЗ или карточки. Если в названии лицензии указан
+   диапазон («1500-2499 Node», «от 50 до 99 узлов»), а точного числа нет – бери нижнюю границу диапазона.
+3. Для КАЖДОЙ позиции обязательно найди товар в каталоге: search_catalog (коротким запросом: вендор +
+   продукт, например «Kaspersky Endpoint Security Стандартный»), затем get_variants по ссылке с нужным
+   количеством. Если не нашлось – попробуй другую формулировку, потом оставь catalog_url пустым.
+4. Сдай итог инструментом submit_analysis. Это обязательный последний шаг. Отвечать текстом без
+   вызова инструмента нельзя.
+
+Как понимать критерии:
+- Закупка ПО – это и «предоставление права использования/неисключительных прав», и лицензии, подписки,
+  продления, сертификаты техподдержки ПО. Не ПО – оборудование, разработка, внедрение, работы, обучение.
+- Подача КП без конкурса – мониторинг цен, запрос котировок/цен/предложений/ТКП, упрощенная или малая
+  закупка, «процедура по закупке с выбором победителя», закупка в интернет-магазине. Конкурс и аукцион – нет.
+- decision: «подавать КП» – закупка ПО, без конкурса, позиции понятны; «не подавать» – только при явной
+  причине из документов (не ПО, конкурс/аукцион, только МСП, сумма больше 1 млн ₽, срок истек);
+  «нужна проверка» – данных не хватает. Причину пиши в decision_reason.
 
 Правила: ничего не выдумывай. Если в документах нет данных – null или «не указано». Цены не считай,
 это сделает программа по каталогу. catalog_url бери только из ответов search_catalog. Риски – коротко:
@@ -82,11 +96,12 @@ FUNCTIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "is_software_purchase": {"type": "boolean", "description": "закупка именно ПО/лицензий"},
-                "procedure_simplified": {
-                    "type": "boolean",
-                    "description": "подача КП без конкурсной процедуры (запрос КП/цен, мониторинг, малая закупка)",
+                "decision": {
+                    "type": "string",
+                    "enum": ["подавать КП", "не подавать", "нужна проверка"],
+                    "description": "решение по закупке",
                 },
+                "decision_reason": {"type": "string", "description": "почему такое решение, 1 предложение"},
                 "msp_only": {"type": "boolean", "description": "участвовать могут только субъекты МСП"},
                 "nmc_rub": {"type": "number", "description": "НМЦ/максимальная цена, ₽, если указана"},
                 "kp_deadline": {"type": "string", "description": "срок приема КП: ДД.ММ.ГГГГ ЧЧ:ММ"},
@@ -127,7 +142,7 @@ FUNCTIONS = [
                     "description": "2–3 предложения для менеджера: что, кому, стоит ли",
                 },
             },
-            "required": ["is_software_purchase", "procedure_simplified", "items", "summary"],
+            "required": ["decision", "decision_reason", "items", "summary"],
         },
     },
 ]
@@ -216,6 +231,7 @@ class Agent:
 
     async def analyze(self, t: Tender) -> Result:
         res = Result()
+        searched = pushed_back = False
         messages: list[dict] = [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": tender_brief(t)},
@@ -234,7 +250,11 @@ class Agent:
                 )
                 messages += [
                     {"role": "assistant", "content": msg.get("content") or ""},
-                    {"role": "user", "content": "Сдай итог инструментом submit_analysis."},
+                    {
+                        "role": "user",
+                        "content": "Продолжай через инструменты: найди каждую позицию в каталоге "
+                        "(search_catalog, get_variants), затем сдай итог через submit_analysis.",
+                    },
                 ]
                 continue
             name = call.get("name", "")
@@ -245,17 +265,40 @@ class Agent:
                 except json.JSONDecodeError:
                     args = {}
             if name == "submit_analysis":
-                res.analysis = args
-                res.trace.append({"step": step + 1, "type": "submit", "args": args})
-                return res
-            try:
-                result = await self._tool(t, name, args)
-            except Exception as e:  # noqa: BLE001 – ошибка инструмента уходит модели, а не роняет анализ
-                log.warning("инструмент %s: %s", name, e)
-                result = json.dumps({"error": f"{type(e).__name__}: {e}"}, ensure_ascii=False)
-            res.trace.append(
-                {"step": step + 1, "type": "tool", "name": name, "args": args, "result": result[:1200]}
-            )
+                unsearched = not searched and args.get("decision") != "не подавать"
+                if unsearched and not pushed_back and step < MAX_STEPS - 3:
+                    # самопроверка: позиции есть, а каталог не смотрели – возвращаем агенту один раз
+                    pushed_back = True
+                    result = json.dumps(
+                        {
+                            "error": "итог не принят: каталог не проверен. Выдели позиции из документов или карточки, найди каждую через "
+                            "search_catalog и get_variants, затем снова submit_analysis."
+                        },
+                        ensure_ascii=False,
+                    )
+                    res.trace.append(
+                        {
+                            "step": step + 1,
+                            "type": "tool",
+                            "name": "self_check",
+                            "args": {},
+                            "result": "итог возвращен агенту: позиции не проверены в каталоге",
+                        }
+                    )
+                else:
+                    res.analysis = args
+                    res.trace.append({"step": step + 1, "type": "submit", "args": args})
+                    return res
+            else:
+                searched = searched or name == "search_catalog"
+                try:
+                    result = await self._tool(t, name, args)
+                except Exception as e:  # noqa: BLE001 – ошибка инструмента уходит модели, а не роняет анализ
+                    log.warning("инструмент %s: %s", name, e)
+                    result = json.dumps({"error": f"{type(e).__name__}: {e}"}, ensure_ascii=False)
+                res.trace.append(
+                    {"step": step + 1, "type": "tool", "name": name, "args": args, "result": result[:1200]}
+                )
             assistant_msg = {"role": "assistant", "content": msg.get("content") or "", "function_call": call}
             if msg.get("functions_state_id"):
                 assistant_msg["functions_state_id"] = msg["functions_state_id"]

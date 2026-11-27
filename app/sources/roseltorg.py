@@ -117,4 +117,6 @@ def parse_detail(html: str, t: Tender) -> Tender:
 
 async def detail(http: httpx2.AsyncClient, t: Tender) -> Tender:
     r = await get(http, t.url)
+    if r.status_code != 200:
+        raise RuntimeError(f"HTTP {r.status_code}")
     return parse_detail(r.text, t)

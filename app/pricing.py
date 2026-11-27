@@ -84,13 +84,15 @@ def score(t: Tender, a: dict, lines: list[KpLine], eco: dict, s: Settings) -> tu
     """0–100, вердикт fit | partial | reject и объяснение – каждое слагаемое видно менеджеру."""
     why: list[str] = []
     gates = {
-        "закупка ПО": a.get("is_software_purchase") is not False,
-        "подача КП без конкурса": a.get("procedure_simplified") is not False,
+        # ПО и «без конкурса» уже проверил код (filters); агент может отклонить только с причиной
+        "решение агента": a.get("decision") != "не подавать",
         "не только для МСП": not a.get("msp_only") and not t.msp_only,
         f"сумма до {s.max_price:,.0f} ₽".replace(",", " "): not (eco["nmc"] and eco["nmc"] > s.max_price)
         and eco["offer_total"] <= s.max_price,
     }
     failed = [k for k, ok in gates.items() if not ok]
+    if "решение агента" in failed:
+        failed[failed.index("решение агента")] = f"агент: {a.get('decision_reason') or 'не подавать'}"
     pts = 40.0
     if failed:
         why += [f"✗ {k}" for k in failed]
@@ -133,11 +135,12 @@ def score(t: Tender, a: dict, lines: list[KpLine], eco: dict, s: Settings) -> tu
         pts += 5
         why.append("✓ есть ТЗ (+5)")
     pts = max(0.0, min(100.0, pts))
-    full = (
-        lines
-        and matched == len(lines)
-        and mp >= s.min_margin
-        and not any("нет в каталоге" in x.note for x in lines)
-    )
+    # «подходит на 100%» – только когда КП можно отдать менеджеру без доработки строк
+    flagged = [x for x in lines if x.note]
+    if flagged:
+        pts -= 5 * len(flagged)
+        why.append(f"✗ {len(flagged)} поз. требуют проверки: {flagged[0].note} (−{5 * len(flagged)})")
+    pts = max(0.0, min(100.0, pts))
+    full = bool(lines) and matched == len(lines) and mp >= s.min_margin and not flagged
     verdict = "fit" if full else "partial"
     return pts, verdict, why

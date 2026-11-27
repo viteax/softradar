@@ -24,14 +24,14 @@ def client() -> httpx2.AsyncClient:
 
 
 async def get(http: httpx2.AsyncClient, url: str, **kw) -> httpx2.Response:
-    """GET с двумя повторами на сетевые сбои и 5xx; площадки иногда отвечают 503."""
+    """GET с повторами: сетевые сбои, 5xx и 429 (площадки ограничивают частоту) – с нарастающей паузой."""
     last: Exception | None = None
-    for delay in (0, 2, 5):
+    for delay in (0, 3, 10, 25):
         if delay:
             await asyncio.sleep(delay)
         try:
             r = await http.get(url, **kw)
-            if r.status_code < 500:
+            if r.status_code < 500 and r.status_code != 429:
                 return r
             last = RuntimeError(f"HTTP {r.status_code}")
         except httpx2.TransportError as e:

@@ -110,6 +110,8 @@ class Pipeline:
             "economics": eco,
             "why": why,
             "requests": res.requests,
+            "prompt_tokens": res.prompt_tokens,
+            "completion_tokens": res.completion_tokens,
         }
         self.db.save_analysis(key, a, res.trace, kp, pts, verdict, res.tokens)
         self.say(

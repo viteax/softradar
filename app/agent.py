@@ -153,6 +153,8 @@ class Result:
     analysis: dict = field(default_factory=dict)
     trace: list = field(default_factory=list)
     tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
     requests: int = 0
     error: str = ""
 
@@ -242,6 +244,8 @@ class Agent:
             msg = await self.giga.chat(messages, funcs)
             usage = getattr(self.giga, "last_usage", {}) or {}
             res.tokens += int(usage.get("total_tokens", 0))
+            res.prompt_tokens += int(usage.get("prompt_tokens", 0))
+            res.completion_tokens += int(usage.get("completion_tokens", 0))
             res.requests += 1
             call = msg.get("function_call")
             if not call:

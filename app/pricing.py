@@ -130,12 +130,16 @@ def score(t: Tender, a: dict, lines: list[KpLine], eco: dict, s: Settings) -> tu
         why.append(f"✓ оценка маржи {mp:.0%} (+{add})")
     elif eco["total_catalog"]:
         why.append(f"✗ маржа {mp:.0%} ниже порога {s.min_margin:.0%}")
+    days = a.get("payment_days") or 0
     if a.get("prepayment"):
-        pts += 5
-        why.append("✓ предоплата (+5)")
-    elif (a.get("payment_days") or 0) > 30:
+        pts += 10
+        why.append("✓ предоплата (+10)")
+    elif days > 30:
         pts -= 10
-        why.append(f"✗ постоплата {a.get('payment_days')} дн. (−10)")
+        why.append(f"✗ постоплата {days} дн. (−10)")
+    elif days > 7:
+        pts -= 5
+        why.append(f"✗ постоплата {days} дн. – больше 7 (−5)")
     if t.deadline:
         hours = (t.deadline - now_msk()).total_seconds() / 3600
         if hours >= 72:
@@ -168,3 +172,31 @@ def score(t: Tender, a: dict, lines: list[KpLine], eco: dict, s: Settings) -> tu
     full = bool(lines) and matched == len(lines) and mp >= s.min_margin and not flagged
     verdict = "fit" if full else "partial"
     return pts, verdict, why
+
+
+def conditions(d: dict, a: dict, lines: list[dict], verdict: str) -> list[tuple[str, bool]]:
+    """5 условий менеджера (брифинг): наверху отчета – закупки «5 из 5». Работает на сохраненных данных."""
+    from datetime import datetime
+
+    days = a.get("payment_days")
+    pay_ok = bool(a.get("prepayment")) or (isinstance(days, int | float) and 0 < days <= 7)
+    hours = None
+    if d.get("deadline"):
+        try:
+            hours = (datetime.fromisoformat(str(d["deadline"])) - now_msk()).total_seconds() / 3600
+        except ValueError:
+            hours = None
+    in_catalog = bool(lines) and all(x.get("matched") and not x.get("note") for x in lines)
+    return [
+        ("критерии отбора (ПО, до 1 млн, без конкурса, не МСП)", verdict in ("fit", "partial")),
+        ("без ТЗ", a.get("has_tz") is False),
+        ("предоплата или постоплата до 7 дней", pay_ok),
+        (
+            "по счету или договор поставщика",
+            a.get("contract_format") in ("без договора", "шаблон поставщика"),
+        ),
+        (
+            "успеваем: больше суток до срока, все позиции в каталоге",
+            in_catalog and (hours is None or hours >= 24),
+        ),
+    ]

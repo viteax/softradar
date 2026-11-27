@@ -19,6 +19,7 @@
     <button class="btn" {% if running %}disabled{% endif %}>Разобрать</button>
   </form>
   <a class="btn" href="/report.xlsx">⬇ Отчет xlsx</a>
+  {% if s.mail_ready %}<form method="post" action="/report/send" style="display:inline"><button class="btn">✉ Отправить отчет на почту</button></form>{% endif %}
 </div>
 <p class="progress {% if running %}on{% endif %}" id="progress">
   {% if running %}{{ progress }}{% elif last_run %}Последний прогон: {{ last_run.started|ts }}{% if last_run.stats %} – найдено {{ last_run.stats.found }}, прошли фильтр {{ last_run.stats.passed }}, разобрано {{ last_run.stats.analyzed }}, подходит {{ last_run.stats.fit }}{% endif %}{% if last_run.error %} · ошибка: {{ last_run.error }}{% endif %}{% else %}Прогонов еще не было{% endif %}

@@ -14,10 +14,13 @@ from .catalog import Catalog
 from .config import Settings
 from .db import DB
 from .docs import extract_conditions, fetch_text
+from .filters import now_msk
 from .gigachat import GigaChat, GigaChatError
+from .kp import report_xlsx
 from .llm_openai import OpenAIChat
+from .mailer import send_report
 from .models import Tender
-from .pricing import build_lines, economics, score
+from .pricing import build_lines, conditions, economics, score
 from .sources import client, fabrikant, roseltorg
 
 log = logging.getLogger(__name__)
@@ -74,7 +77,8 @@ class Pipeline:
         """Ключевые условия, которые агент пропустил, – добираем кодом из всех документов (тексты в кэше)."""
         missing = ("не указан", "не указано", "", None)
         if (
-            a.get("kp_validity_days")
+            a.get("customer_inn")
+            and a.get("kp_validity_days")
             and a.get("contract_format") not in missing
             and a.get("payment_terms") not in missing
         ):
@@ -141,6 +145,7 @@ class Pipeline:
             "completion_tokens": res.completion_tokens,
             "model": self.s.model_name,
         }
+        kp["conditions"] = [[name, ok] for name, ok in conditions(t.to_dict(), a, kp["lines"], verdict)]
         self.db.save_analysis(key, a, res.trace, kp, pts, verdict, res.tokens)
         self.say(
             f"{t.key}: {verdict}, {pts:.0f} баллов, {res.tokens} токенов, {res.requests} запросов к модели"
@@ -218,6 +223,21 @@ class Pipeline:
         self.db.upsert_tender(t.to_dict(), True, reasons + ["добавлена вручную"])
         return t.key
 
+    async def daily_report(self, force: bool = False) -> bool:
+        """Раз в день после REPORT_HOUR (МСК) – Excel-отчет менеджеру на почту."""
+        if not self.s.mail_ready:
+            return False
+        today = now_msk().strftime("%Y-%m-%d")
+        if not force and (
+            now_msk().hour < self.s.report_hour or self.db.cache_get("report_sent:" + today, 86400 * 2)
+        ):
+            return False
+        rows = [r for r in self.db.tenders() if r.get("analyzed")]
+        await send_report(self.s, rows, report_xlsx(rows))
+        self.db.cache_put("report_sent:" + today, "1")
+        self.say(f"отчет отправлен на {self.s.report_to}")
+        return True
+
     async def loop(self) -> None:
         await asyncio.sleep(15)
         while True:
@@ -225,4 +245,9 @@ class Pipeline:
                 await self.run()
             except Exception:  # noqa: BLE001
                 log.exception("фоновый прогон")
+            try:
+                await self.daily_report()
+            except Exception as e:  # noqa: BLE001
+                log.exception("отчет на почту")
+                self.say(f"отчет на почту не отправлен: {e}")
             await asyncio.sleep(self.s.run_interval_min * 60)

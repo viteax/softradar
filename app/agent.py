@@ -120,6 +120,7 @@ FUNCTIONS = [
                 "delivery_term": {"type": "string", "description": "срок поставки/передачи лицензий"},
                 "has_tz": {"type": "boolean", "description": "есть техническое задание"},
                 "vendor": {"type": "string", "description": "основной вендор ПО"},
+                "customer_inn": {"type": "string", "description": "ИНН заказчика, если указан"},
                 "items": {
                     "type": "array",
                     "items": {

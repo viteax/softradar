@@ -131,6 +131,9 @@ def extract_conditions(text: str) -> dict:
         out["payment_terms"] = re.sub(r"\s+", " ", pay.group(0)).strip(" ,;.")
         out["payment_days"] = int(pay.group(1))
         out["prepayment"] = bool(re.search(r"предоплат|аванс", pay.group(0), re.I))
+    inn = re.search(r"ИНН(?:\s+заказчика)?\s*[:№]?\s*(\d{10}|\d{12})\b", text or "")
+    if inn:
+        out["customer_inn"] = inn.group(1)
     low = (text or "").lower()
     if "проект договора" in low or "проект контракта" in low:
         out["contract_format"] = "шаблон заказчика"

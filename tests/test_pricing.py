@@ -50,3 +50,14 @@ def test_economics_and_score():
     assert score(t, a2, lines, eco, s)[1] == "reject"
     doc = kp_docx(t.to_dict(), a, {"lines": [vars(lines[0]) | {"total": 180000}], "economics": eco})
     assert doc[:2] == b"PK"
+
+
+def test_conditions_five():
+    from app.pricing import conditions
+
+    d = {"deadline": "2099-01-01T10:00:00"}
+    a = {"has_tz": False, "prepayment": True, "contract_format": "без договора"}
+    lines = [{"matched": True, "note": ""}]
+    assert all(ok for _, ok in conditions(d, a, lines, "fit"))
+    a2 = a | {"prepayment": False, "payment_days": 30}
+    assert sum(ok for _, ok in conditions(d, a2, lines, "fit")) == 4

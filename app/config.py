@@ -79,11 +79,23 @@ class Settings:
     # цена за 1 млн токенов, ₽ (вход / выход) – для стоимости разбора на дашборде
     price_in_1m: float = field(default_factory=lambda: float(_env("LLM_PRICE_IN_1M", "96.22")))
     price_out_1m: float = field(default_factory=lambda: float(_env("LLM_PRICE_OUT_1M", "288.6")))
+    # ежедневный отчет на почту (пусто – не отправлять)
+    smtp_host: str = field(default_factory=lambda: _env("SMTP_HOST"))
+    smtp_port: int = field(default_factory=lambda: int(_env("SMTP_PORT", "465")))
+    smtp_user: str = field(default_factory=lambda: _env("SMTP_USER"))
+    smtp_password: str = field(default_factory=lambda: _env("SMTP_PASSWORD"))
+    smtp_from: str = field(default_factory=lambda: _env("SMTP_FROM"))
+    report_to: str = field(default_factory=lambda: _env("REPORT_TO"))
+    report_hour: int = field(default_factory=lambda: int(_env("REPORT_HOUR", "9")))  # МСК
     autorun: bool = field(default_factory=lambda: _env("AUTORUN", "1") == "1")
 
     @property
     def llm_ready(self) -> bool:
         return bool(self.llm_api_key) if self.llm_provider == "openai" else bool(self.giga_auth_key)
+
+    @property
+    def mail_ready(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password and self.report_to)
 
     @property
     def model_name(self) -> str:

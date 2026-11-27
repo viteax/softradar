@@ -142,67 +142,106 @@ VERDICT = {"fit": "Подходит – КП готово", "partial": "Част
 
 
 def report_xlsx(rows: list[dict]) -> bytes:
+    """Отчет менеджеру по брифингу: наверху «5 из 5», затем по вердикту, баллу и близости срока подачи."""
+    from .pricing import conditions
+
+    prepared = []
+    for r in rows:
+        a, d, kp = r.get("analysis") or {}, r["data"], r.get("kp") or {}
+        conds = kp.get("conditions") or conditions(d, a, kp.get("lines") or [], r.get("verdict") or "")
+        ok = sum(1 for _, v in conds if v)
+        prepared.append((r, a, d, kp, conds, ok))
+    rank = {"fit": 0, "partial": 1, "reject": 2}
+    prepared.sort(
+        key=lambda x: (
+            -x[5],
+            rank.get(x[0].get("verdict") or "", 3),
+            -(x[0].get("score") or 0),
+            x[2].get("deadline") or "9",
+        )
+    )
     wb = Workbook()
     ws = wb.active
     ws.title = "Закупки"
     head = [
-        "Приоритет",
+        "Условий из 5",
+        "Не выполнено",
+        "Балл",
         "Вердикт",
-        "Площадка",
-        "Номер",
-        "Предмет",
-        "Заказчик",
-        "НМЦ, ₽",
         "Прием КП до",
-        "Срок действия КП, дн.",
+        "Предмет",
+        "Позиции и артикулы",
+        "Заказчик",
+        "ИНН заказчика",
+        "НМЦ, ₽",
+        "Сумма КП, ₽",
+        "Маржа, %",
         "Оплата",
+        "Предоплата",
+        "Постоплата, дн.",
         "Формат договора",
         "ТЗ",
+        "Срок действия КП, дн.",
         "Вендор",
-        "Сумма КП, ₽",
-        "Маржа, ₽",
-        "Маржа, %",
+        "Почему так (агент)",
         "Риски",
-        "Резюме",
-        "Ссылка",
+        "Площадка",
+        "Номер",
+        "Ссылка на процедуру",
     ]
     ws.append(head)
     for c in ws[1]:
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="C8102E")
         c.alignment = Alignment(wrap_text=True, vertical="center")
-    for r in rows:
-        a, d, eco = r.get("analysis") or {}, r["data"], (r.get("kp") or {}).get("economics") or {}
+    green, yellow = PatternFill("solid", fgColor="D9F2D9"), PatternFill("solid", fgColor="FFF4CC")
+    for r, a, d, kp, conds, ok in prepared:
+        eco = kp.get("economics") or {}
+        items = [
+            f"{x.get('request_name', '')[:80]} × {x.get('qty')}"
+            + (f" → {x['sku']}" if x.get("matched") else " → не найдено")
+            for x in kp.get("lines") or []
+        ] or [f"{i.get('name', '')[:80]} × {i.get('qty')}" for i in a.get("items") or []]
         ws.append(
             [
+                f"{ok} из 5",
+                "; ".join(n for n, v in conds if not v),
                 round(r.get("score") or 0),
                 VERDICT.get(r.get("verdict") or "", "не проанализирована"),
-                d["source"],
-                d["number"],
-                d["title"],
-                d.get("customer"),
-                eco.get("nmc") or d.get("price"),
                 (d.get("deadline") or "").replace("T", " ")[:16],
-                a.get("kp_validity_days"),
+                d["title"],
+                "\n".join(items),
+                d.get("customer"),
+                a.get("customer_inn"),
+                eco.get("nmc") or d.get("price"),
+                eco.get("offer_total"),
+                round((eco.get("margin_pct") or 0) * 100, 1) if eco else None,
                 a.get("payment_terms"),
+                {True: "да", False: "нет"}.get(a.get("prepayment"), "?"),
+                a.get("payment_days"),
                 a.get("contract_format"),
                 {True: "есть", False: "нет"}.get(a.get("has_tz"), "?"),
+                a.get("kp_validity_days"),
                 a.get("vendor"),
-                eco.get("offer_total"),
-                eco.get("margin"),
-                round((eco.get("margin_pct") or 0) * 100, 1) if eco else None,
+                (a.get("decision_reason") or "") + ("\n" + a["summary"] if a.get("summary") else ""),
                 "; ".join(a.get("risks") or []),
-                a.get("summary"),
+                d["source"],
+                d["number"],
                 d["url"],
             ]
         )
-    widths = [10, 18, 11, 18, 60, 35, 14, 16, 10, 35, 16, 6, 14, 14, 12, 9, 50, 60, 40]
+        fill = green if ok == 5 else yellow if ok >= 3 else None
+        if fill:
+            ws.cell(row=ws.max_row, column=1).fill = fill
+        ws.cell(row=ws.max_row, column=24).hyperlink = d["url"]
+    widths = [9, 40, 7, 16, 16, 50, 55, 35, 13, 13, 13, 9, 40, 10, 10, 16, 6, 10, 14, 60, 45, 11, 18, 40]
     for i, w in enumerate(widths):
-        ws.column_dimensions[chr(65 + i)].width = w
+        ws.column_dimensions[ws.cell(row=1, column=i + 1).column_letter].width = w
     for row in ws.iter_rows(min_row=2):
         for c in row:
             c.alignment = Alignment(wrap_text=True, vertical="top")
-    ws.freeze_panes = "A2"
+    ws.freeze_panes = "B2"
+    ws.auto_filter.ref = ws.dimensions
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

@@ -30,6 +30,7 @@
         <dt>Техническое задание</dt><dd>{{ {True: "есть", False: "нет"}.get(a.has_tz, "неизвестно") }}</dd>
         <dt>Только для МСП</dt><dd>{{ {True: "да", False: "нет"}.get(a.msp_only if a.msp_only is not none else d.msp_only, "не указано") }}</dd>
         <dt>Решение агента</dt><dd>{{ a.decision or "–" }}{% if a.decision_reason %} <span class="small">– {{ a.decision_reason }}</span>{% endif %}</dd>
+        <dt>ИНН заказчика</dt><dd>{{ a.customer_inn or "–" }}</dd>
         <dt>Вендор</dt><dd>{{ a.vendor or "–" }}</dd>
       </dl>
     </div>
@@ -68,6 +69,9 @@
   </div>
 
   <div class="grid">
+    {% if kp.conditions %}
+    <div class="card"><h2>Условия менеджера: {{ kp.conditions|selectattr(1)|list|length }} из 5</h2><ul class="why">{% for c in kp.conditions %}<li>{{ "✓" if c[1] else "✗" }} {{ c[0] }}</li>{% endfor %}</ul></div>
+    {% endif %}
     {% if kp.why %}
     <div class="card"><h2>Почему такой балл</h2><ul class="why">{% for w in kp.why %}<li>{{ w }}</li>{% endfor %}</ul></div>
     {% endif %}

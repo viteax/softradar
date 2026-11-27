@@ -142,6 +142,17 @@ async def report(request: Request) -> Response:
     )
 
 
+async def send_report_now(request: Request) -> Response:
+    try:
+        ok = await pipeline.daily_report(force=True)
+    except Exception as e:  # noqa: BLE001
+        pipeline.say(f"отчет на почту не отправлен: {e}")
+        ok = False
+    if not ok and not settings.mail_ready:
+        pipeline.say("почта не настроена: SMTP_HOST, SMTP_USER, SMTP_PASSWORD, REPORT_TO в .env")
+    return RedirectResponse("/", status_code=303)
+
+
 async def run_now(request: Request) -> Response:
     if not pipeline.running:
         asyncio.create_task(pipeline.run())
@@ -241,6 +252,7 @@ routes = [
     Route("/t/{key:path}/reanalyze", reanalyze, methods=["POST"]),
     Route("/t/{key:path}", tender),
     Route("/report.xlsx", report),
+    Route("/report/send", send_report_now, methods=["POST"]),
     Route("/run", run_now, methods=["POST"]),
     Route("/add", add_url, methods=["POST"]),
     Route("/api/tenders", api_tenders),

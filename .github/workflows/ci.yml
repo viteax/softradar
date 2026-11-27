@@ -1,0 +1,48 @@
+# Линтер и тесты (стадия test в Dockerfile), сборка образа и проверка запуска – на каждый push и PR.
+# На main образ уходит в ghcr.io, а коммит – в ветку deploy: сервер сам забирает ее раз в 2 минуты
+# (deploy/deploy.sh по таймеру softradar-deploy.timer). Стек не важен: все, что нужно, – в Dockerfile.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Линтер и тесты
+        run: docker build --target test -t ci-test .
+      - name: Образ
+        run: docker build --target app -t ci-app .
+      - name: Запускается и здоров
+        run: |
+          touch .env
+          docker run -d --name smoke --env-file .env ci-app
+          bash deploy/healthy.sh smoke 60
+      - name: Образ – в ghcr.io, тег по коммиту
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag ci-app "ghcr.io/viteax/softradar:sha-$GITHUB_SHA"
+          docker push -q "ghcr.io/viteax/softradar:sha-$GITHUB_SHA"
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      # push от GITHUB_TOKEN не запускает workflow заново – цикла не будет
+      - run: git push --force origin HEAD:refs/heads/deploy

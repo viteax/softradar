@@ -1,0 +1,10 @@
+[Unit]
+Description=Автодеплой softradar из ветки deploy
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# через bash, а не сам файл: коммит с Windows может снять бит исполнения
+ExecStart=/bin/bash /opt/softradar/deploy/deploy.sh
+TimeoutStartSec=15min

@@ -1,0 +1,10 @@
+[Unit]
+Description=Копия базы softradar – раз в сутки ночью
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/Moscow
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,32 @@
+# СофтРадар – закупки ПО и КП (/opt/softradar). Подробно – README.md.
+# На сервере – образ из CI (IMAGE_TAG пишет deploy/deploy.sh в .env), локально – сборка.
+
+name: softradar
+
+services:
+  app:
+    image: ghcr.io/viteax/softradar:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: app
+    container_name: softradar
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    volumes:
+      - data:/data # база и файлы; бэкап – deploy/backup.sh
+    networks:
+      edge:
+        aliases: [softradar] # по этому имени edge-caddy передает запросы
+    # сервер общий: ~2 ГБ свободной памяти на все новые проекты
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+
+volumes:
+  data:
+
+networks:
+  edge:
+    external: true

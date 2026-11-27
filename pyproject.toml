@@ -1,0 +1,28 @@
+[project]
+name = "softradar"
+version = "0.1.0"
+description = "СофтРадар – закупки ПО и КП"
+requires-python = ">=3.14"
+dependencies = [
+    "starlette>=0.48",
+    "uvicorn>=0.38",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16", # TestClient Starlette (httpx2 – продолжение httpx от Pydantic)
+    "pytest>=8.4",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

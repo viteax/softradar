@@ -1,0 +1,7 @@
+[Unit]
+Description=Копия базы softradar
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/softradar/deploy/backup.sh

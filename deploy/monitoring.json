@@ -1,0 +1,12 @@
+[
+  {
+    "targets": [
+      "https://softradar.iptvik.ru/healthz"
+    ],
+    "labels": {
+      "project": "softradar",
+      "site": "softradar.iptvik.ru",
+      "title": "СофтРадар – закупки ПО и КП"
+    }
+  }
+]

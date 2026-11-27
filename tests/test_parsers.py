@@ -66,3 +66,11 @@ def test_extract_conditions():
     t = "срок действия коммерческого предложения должен быть не менее 60 календарных дней; проект договора"
     assert extract_conditions(t) == {"kp_validity_days": 60, "contract_format": "шаблон заказчика"}
     assert extract_conditions("Срок действия ТКП: не менее 3 (трех) месяцев")["kp_validity_days"] == 90
+
+
+def test_extract_payment():
+    from app.docs import extract_conditions
+
+    t = "Оплата производится в течение 10 (десяти) рабочих дней с момента получения лицензии."
+    c = extract_conditions(t)
+    assert c["payment_days"] == 10 and c["prepayment"] is False and "10" in c["payment_terms"]

@@ -72,7 +72,12 @@ class Pipeline:
 
     async def fill_gaps(self, t: Tender, a: dict) -> None:
         """Ключевые условия, которые агент пропустил, – добираем кодом из всех документов (тексты в кэше)."""
-        if a.get("kp_validity_days") and a.get("contract_format") not in (None, "", "не указан"):
+        missing = ("не указан", "не указано", "", None)
+        if (
+            a.get("kp_validity_days")
+            and a.get("contract_format") not in missing
+            and a.get("payment_terms") not in missing
+        ):
             return
         texts = [t.page_text or ""]
         for doc in t.docs[:8]:
@@ -82,7 +87,7 @@ class Pipeline:
                 continue
         found = extract_conditions("\n".join(texts))
         for k, v in found.items():
-            if v and (not a.get(k) or a.get(k) == "не указан"):
+            if v is not None and v != "" and a.get(k) in missing:
                 a[k] = v
                 a.setdefault("filled_by_code", []).append(k)
 

@@ -143,7 +143,17 @@ FUNCTIONS = [
                     "description": "2–3 предложения для менеджера: что, кому, стоит ли",
                 },
             },
-            "required": ["decision", "decision_reason", "items", "summary"],
+            "required": [
+                "decision",
+                "decision_reason",
+                "items",
+                "summary",
+                "kp_deadline",
+                "kp_validity_days",
+                "payment_terms",
+                "contract_format",
+                "has_tz",
+            ],
         },
     },
 ]

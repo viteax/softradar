@@ -112,6 +112,13 @@ VALIDITY = re.compile(
 )
 
 
+PAYMENT = re.compile(
+    r"оплат\w*[^.;\n]{0,120}?в\s+течени[еи]\s+(\d{1,3})\s*\(?[^)]{0,25}\)?\s*(?:рабочих|календарных|банковских)?\s*дн\w*"
+    r"[^.;\n]{0,80}",
+    re.I,
+)
+
+
 def extract_conditions(text: str) -> dict:
     """Резерв для агента: минимальный срок действия КП и формат договора по типовым формулировкам."""
     out: dict = {}
@@ -119,6 +126,11 @@ def extract_conditions(text: str) -> dict:
     if m:
         n = int(m.group(1))
         out["kp_validity_days"] = n * 30 if m.group(2).lower().startswith("мес") else n
+    pay = PAYMENT.search(text or "")
+    if pay:
+        out["payment_terms"] = re.sub(r"\s+", " ", pay.group(0)).strip(" ,;.")
+        out["payment_days"] = int(pay.group(1))
+        out["prepayment"] = bool(re.search(r"предоплат|аванс", pay.group(0), re.I))
     low = (text or "").lower()
     if "проект договора" in low or "проект контракта" in low:
         out["contract_format"] = "шаблон заказчика"

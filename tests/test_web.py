@@ -25,3 +25,9 @@ def test_report_xlsx():
     r = client.get("/report.xlsx")
     assert r.status_code == 200
     assert r.content[:2] == b"PK"
+
+
+def test_add_url_form():
+    # форма ручного ввода парсится (нужен python-multipart), чужая ссылка – понятная ошибка
+    r = client.post("/add", data={"url": "https://example.com/x"})
+    assert r.status_code == 400
